@@ -585,35 +585,62 @@ def output_display_path(output_arg: str, output_path: Path, root: Path) -> str:
 
 def write_text_atomic_no_follow(path: Path, text: str) -> None:
     """Atomically write text without following a final-path symlink."""
+    if path.is_symlink():
+        raise OSError(f"refusing to overwrite symlink: {path}")
+
     dir_flags = os.O_RDONLY
     if hasattr(os, "O_DIRECTORY"):
         dir_flags |= os.O_DIRECTORY
     if hasattr(os, "O_NOFOLLOW"):
         dir_flags |= os.O_NOFOLLOW
 
-    dir_fd = os.open(path.parent, dir_flags)
+    file_flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL
+    if hasattr(os, "O_NOFOLLOW"):
+        file_flags |= os.O_NOFOLLOW
+
     tmp_name = f".{path.name}.{os.getpid()}.{secrets.token_hex(8)}.tmp"
     tmp_created = False
+    tmp_path = None
+    dir_fd = None
     try:
-        file_flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL
-        if hasattr(os, "O_NOFOLLOW"):
-            file_flags |= os.O_NOFOLLOW
-        fd = os.open(tmp_name, file_flags, 0o600, dir_fd=dir_fd)
-        tmp_created = True
-        with os.fdopen(fd, "w", encoding="utf-8") as handle:
-            handle.write(text)
-            handle.flush()
-            os.fsync(handle.fileno())
-        os.replace(tmp_name, path.name, src_dir_fd=dir_fd, dst_dir_fd=dir_fd)
-        tmp_created = False
-        os.fsync(dir_fd)
+        if os.name == "nt":
+            # Windows does not permit opening a directory with os.open().
+            tmp_path = path.parent / tmp_name
+            fd = os.open(tmp_path, file_flags, 0o600)
+            tmp_created = True
+            with os.fdopen(fd, "w", encoding="utf-8") as handle:
+                handle.write(text)
+                handle.flush()
+                os.fsync(handle.fileno())
+            os.replace(tmp_path, path)
+            tmp_created = False
+            return
+
+        dir_fd = os.open(path.parent, dir_flags)
+        try:
+            fd = os.open(tmp_name, file_flags, 0o600, dir_fd=dir_fd)
+            tmp_created = True
+            with os.fdopen(fd, "w", encoding="utf-8") as handle:
+                handle.write(text)
+                handle.flush()
+                os.fsync(handle.fileno())
+            os.replace(tmp_name, path.name, src_dir_fd=dir_fd, dst_dir_fd=dir_fd)
+            tmp_created = False
+            os.fsync(dir_fd)
+        finally:
+            if tmp_created:
+                try:
+                    os.unlink(tmp_name, dir_fd=dir_fd)
+                except OSError:
+                    pass
     finally:
-        if tmp_created:
+        if tmp_created and tmp_path is not None:
             try:
-                os.unlink(tmp_name, dir_fd=dir_fd)
+                tmp_path.unlink()
             except OSError:
                 pass
-        os.close(dir_fd)
+        if dir_fd is not None:
+            os.close(dir_fd)
 
 
 def main(argv: list[str] | None = None) -> int:

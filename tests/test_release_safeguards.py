@@ -374,6 +374,8 @@ def test_dependency_requirements_and_locks_are_coherent() -> None:
 
 
 def test_shell_installer_is_locale_safe_and_complete(tmp_path: Path) -> None:
+    if os.name == "nt":
+        pytest.skip("install.sh is POSIX-only; install.ps1 covers Windows")
     fake_bin = tmp_path / "bin"
     fake_bin.mkdir()
     fake_pip = fake_bin / "pip3"
