@@ -190,7 +190,10 @@ def test_cli_refuses_symlink(tmp_path: Path):
     real = tmp_path / "real_BRAND.md"
     real.write_text("data", encoding="utf-8")
     link = tmp_path / "BRAND.md"
-    os.symlink(real, link)
+    try:
+        os.symlink(real, link)
+    except (OSError, NotImplementedError):
+        pytest.skip("symlinks unsupported on this platform")
     result = _run([sys.executable, str(HELPER), "--root", str(tmp_path), str(link)])
     assert result.returncode != 0
     assert "symlink" in result.stderr.lower()

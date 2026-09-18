@@ -40,7 +40,10 @@ def test_cognitive_load_refuses_symlink_input(tmp_path: Path) -> None:
     real_target = tmp_path / "real.md"
     real_target.write_text("## section\nbody\n", encoding="utf-8")
     symlink = tmp_path / "link.md"
-    os.symlink(real_target, symlink)
+    try:
+        os.symlink(real_target, symlink)
+    except (OSError, NotImplementedError):
+        pytest.skip("symlinks unsupported on this platform")
     result = _run([sys.executable, str(COGNITIVE), str(symlink)])
     assert result.returncode != 0
     assert "symlink" in result.stderr.lower()
@@ -50,7 +53,10 @@ def test_discourse_research_refuses_symlink_input(tmp_path: Path) -> None:
     real_target = tmp_path / "real.json"
     real_target.write_text("[]", encoding="utf-8")
     symlink = tmp_path / "link.json"
-    os.symlink(real_target, symlink)
+    try:
+        os.symlink(real_target, symlink)
+    except (OSError, NotImplementedError):
+        pytest.skip("symlinks unsupported on this platform")
     result = _run([
         sys.executable, str(DISCOURSE),
         "--input", str(symlink),
@@ -67,7 +73,10 @@ def test_discourse_research_refuses_symlink_output(tmp_path: Path) -> None:
     real_target = tmp_path / "real_target.md"
     real_target.write_text("placeholder\n", encoding="utf-8")
     symlink_output = tmp_path / "DISCOURSE.md"
-    os.symlink(real_target, symlink_output)
+    try:
+        os.symlink(real_target, symlink_output)
+    except (OSError, NotImplementedError):
+        pytest.skip("symlinks unsupported on this platform")
     inp = tmp_path / "results.json"
     inp.write_text("[]", encoding="utf-8")
     result = _run([

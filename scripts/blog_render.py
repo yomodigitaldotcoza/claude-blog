@@ -447,8 +447,11 @@ def _read_md_safely(path: Path) -> str:
     O_NOFOLLOW pattern used by scripts/load_untrusted_root.py for project-
     root files so a caller cannot redirect the renderer at an attacker-
     chosen target via symlink."""
+    if path.is_symlink():
+        raise ValueError(f"refusing to follow symlink: {path}")
+    flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0)
     try:
-        fd = os.open(str(path), os.O_RDONLY | os.O_NOFOLLOW)
+        fd = os.open(str(path), flags)
     except OSError as e:
         if e.errno in (errno.ELOOP, errno.EMLINK):
             raise ValueError(f"refusing to follow symlink: {path}")
